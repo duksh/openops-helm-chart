@@ -1,0 +1,50 @@
+# Default values for OpenOps agent
+replicaCount: 1
+
+image:
+  repository: public.ecr.aws/openops/agent
+  tag: latest
+  pullPolicy: IfNotPresent
+
+nameOverride: ""
+fullnameOverride: ""
+
+service:
+  type: ClusterIP
+  port: 80
+
+persistence:
+  enabled: true
+  size: 50Gi
+  storageClass: ""
+
+resources:
+  requests:
+    cpu: 1
+    memory: 2Gi
+  limits:
+    cpu: 2
+    memory: 4Gi
+
+# Admin credentials and other environment variables
+env:
+  OPS_OPENOPS_ADMIN_EMAIL: admin@example.com
+  # Other non-sensitive environment variables
+
+# Sensitive credentials that should be stored in a Kubernetes Secret
+secrets:
+  enabled: true
+  # These values will be base64 encoded automatically by the template
+  adminPassword: "changeMe"
+  # Other sensitive credentials
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: chart-example.local
+      paths:
+        - path: /
+          pathType: ImplementationSpecific
+  tls: []
