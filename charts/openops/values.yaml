@@ -1,50 +1,193 @@
-# Default values for OpenOps agent
-replicaCount: 1
-
-image:
-  repository: public.ecr.aws/openops/agent
-  tag: latest
-  pullPolicy: IfNotPresent
-
+# Default values for OpenOps
 nameOverride: ""
 fullnameOverride: ""
 
-service:
-  type: ClusterIP
-  port: 80
-
-persistence:
-  enabled: true
-  size: 50Gi
+# Global settings
+global:
   storageClass: ""
 
-resources:
-  requests:
-    cpu: 1
-    memory: 2Gi
-  limits:
-    cpu: 2
-    memory: 4Gi
+# OpenOps Components using official Docker images
 
-# Admin credentials and other environment variables
-env:
-  OPS_OPENOPS_ADMIN_EMAIL: admin@example.com
-  # Other non-sensitive environment variables
-
-# Sensitive credentials that should be stored in a Kubernetes Secret
-secrets:
+# OpenOps App Component
+app:
   enabled: true
-  # These values will be base64 encoded automatically by the template
-  adminPassword: "changeMe"
-  # Other sensitive credentials
+  replicaCount: 1
+  image:
+    # Using the official image from ECR public repository
+    repository: "public.ecr.aws/openops/openops-app"
+    tag: "0.2.7"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 80
+  resources:
+    requests:
+      cpu: 1
+      memory: 2Gi
+    limits:
+      cpu: 2
+      memory: 4Gi
 
+# OpenOps Engine Component
+engine:
+  enabled: true
+  replicaCount: 1
+  image:
+    # Using the official image from ECR public repository
+    repository: "public.ecr.aws/openops/openops-engine"
+    tag: "0.2.7"
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 1
+      memory: 2Gi
+  volumes:
+    azure:
+      enabled: true
+      size: 1Gi
+    gcloud:
+      enabled: true
+      size: 1Gi
+
+# OpenOps Tables Component
+tables:
+  enabled: true
+  replicaCount: 1
+  image:
+    # Using the official image from ECR public repository
+    repository: "public.ecr.aws/openops/openops-tables"
+    tag: "0.1.8"  # Using the version from vicrem/openops-helm
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 80
+  persistence:
+    enabled: true
+    size: 10Gi
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 1
+      memory: 2Gi
+
+# OpenOps Analytics Component
+analytics:
+  enabled: true
+  replicaCount: 1
+  image:
+    # Using the official image from ECR public repository
+    repository: "public.ecr.aws/openops/openops-analytics"
+    tag: "0.12.16"  # Using the version from vicrem/openops-helm
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 80
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 1
+      memory: 2Gi
+
+# Postgres Database - using official Docker Hub image
+postgres:
+  enabled: true
+  image:
+    repository: postgres
+    tag: "14.4"
+    pullPolicy: IfNotPresent
+  service:
+    port: 5432
+  persistence:
+    enabled: true
+    size: 20Gi
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 1
+      memory: 2Gi
+  maxConnections: 300
+
+# Redis Cache - using official Docker Hub image
+redis:
+  enabled: true
+  image:
+    repository: redis
+    tag: "7.4.0"
+    pullPolicy: IfNotPresent
+  service:
+    port: 6379
+  persistence:
+    enabled: true
+    size: 5Gi
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+
+# NGINX Gateway - using official Docker Hub image
+nginx:
+  enabled: true
+  image:
+    repository: nginx
+    tag: "1.27.4"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 80
+  configMap:
+    enabled: true
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+# Ingress configuration
 ingress:
   enabled: false
   className: ""
   annotations: {}
   hosts:
-    - host: chart-example.local
+    - host: openops.local
       paths:
         - path: /
           pathType: ImplementationSpecific
   tls: []
+
+# Environment variables and secrets
+env:
+  OPS_OPENOPS_ADMIN_EMAIL: admin@example.com
+  OPS_OPENOPS_TABLES_PUBLIC_URL: http://openops-tables
+  OPS_POSTGRES_HOST: openops-postgres
+  OPS_POSTGRES_PORT: "5432"
+  OPS_POSTGRES_DATABASE: openops
+  OPS_OPENOPS_TABLES_DATABASE_NAME: openops_tables
+  OPS_TABLES_TOKEN_LIFETIME_MINUTES: "60"
+  OPS_JWT_TOKEN_LIFETIME_HOURS: "24"
+  ANALYTICS_ALLOW_ADHOC_SUBQUERY: "true"
+
+# Sensitive credentials that will be stored in a Kubernetes Secret
+secrets:
+  enabled: true
+  # These values will be base64 encoded automatically by the template
+  OPS_OPENOPS_ADMIN_PASSWORD: "changeMe"
+  OPS_POSTGRES_USERNAME: "postgres"
+  OPS_POSTGRES_PASSWORD: "postgres"
+  OPS_ENCRYPTION_KEY: "changeMe"
+  OPS_JWT_SECRET: "changeMe"
+  ANALYTICS_POWERUSER_PASSWORD: "changeMe"
+  OPS_ANALYTICS_ADMIN_PASSWORD: "changeMe"

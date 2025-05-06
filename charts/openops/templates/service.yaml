@@ -1,15 +1,124 @@
+{{- if .Values.app.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "openops.fullname" . }}-app
+  labels:
+    {{- include "openops.labels" . | nindent 4 }}
+    app.kubernetes.io/component: app
+spec:
+  type: {{ .Values.app.service.type }}
+  ports:
+    - port: {{ .Values.app.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "openops.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: app
+{{- end }}
+
+---
+{{- if .Values.tables.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "openops.fullname" . }}-tables
+  labels:
+    {{- include "openops.labels" . | nindent 4 }}
+    app.kubernetes.io/component: tables
+spec:
+  type: {{ .Values.tables.service.type }}
+  ports:
+    - port: {{ .Values.tables.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "openops.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: tables
+{{- end }}
+
+---
+{{- if .Values.analytics.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "openops.fullname" . }}-analytics
+  labels:
+    {{- include "openops.labels" . | nindent 4 }}
+    app.kubernetes.io/component: analytics
+spec:
+  type: {{ .Values.analytics.service.type }}
+  ports:
+    - port: {{ .Values.analytics.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "openops.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: analytics
+{{- end }}
+
+---
+{{- if .Values.postgres.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "openops.fullname" . }}-postgres
+  labels:
+    {{- include "openops.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgres
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.postgres.service.port }}
+      targetPort: {{ .Values.postgres.service.port }}
+      protocol: TCP
+      name: postgres
+  selector:
+    {{- include "openops.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: postgres
+{{- end }}
+
+---
+{{- if .Values.redis.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "openops.fullname" . }}-redis
+  labels:
+    {{- include "openops.labels" . | nindent 4 }}
+    app.kubernetes.io/component: redis
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.redis.service.port }}
+      targetPort: {{ .Values.redis.service.port }}
+      protocol: TCP
+      name: redis
+  selector:
+    {{- include "openops.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: redis
+{{- end }}
+
+---
+{{- if and .Values.nginx.enabled .Values.app.enabled }}
 apiVersion: v1
 kind: Service
 metadata:
   name: {{ include "openops.fullname" . }}
   labels:
     {{- include "openops.labels" . | nindent 4 }}
+    app.kubernetes.io/component: nginx
 spec:
-  type: {{ .Values.service.type }}
+  type: {{ .Values.nginx.service.type }}
   ports:
-    - port: {{ .Values.service.port }}
-      targetPort: http
+    - port: {{ .Values.nginx.service.port }}
+      targetPort: 80
       protocol: TCP
       name: http
   selector:
     {{- include "openops.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: nginx
+{{- end }}

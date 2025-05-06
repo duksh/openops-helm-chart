@@ -1,23 +1,31 @@
+{{- if .Values.app.enabled }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "openops.fullname" . }}
+  name: {{ include "openops.fullname" . }}-app
   labels:
     {{- include "openops.labels" . | nindent 4 }}
+    app.kubernetes.io/component: app
 spec:
-  replicas: {{ .Values.replicaCount }}
+  replicas: {{ .Values.app.replicaCount }}
   selector:
     matchLabels:
       {{- include "openops.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: app
   template:
     metadata:
       labels:
         {{- include "openops.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: app
     spec:
+      {{- if .Values.app.image.pullSecrets }}
+      imagePullSecrets:
+        {{- toYaml .Values.app.image.pullSecrets | nindent 8 }}
+      {{- end }}
       containers:
-        - name: {{ .Chart.Name }}
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
+        - name: {{ .Chart.Name }}-app
+          image: "{{ .Values.app.image.repository }}:{{ .Values.app.image.tag }}"
+          imagePullPolicy: {{ .Values.app.image.pullPolicy }}
           ports:
             - name: http
               containerPort: 80
@@ -27,23 +35,396 @@ spec:
             - name: {{ $key }}
               value: {{ $value | quote }}
             {{- end }}
-            {{- if .Values.secrets.enabled }}
-            - name: OPS_OPENOPS_ADMIN_PASSWORD
+            {{- range $key, $value := .Values.secrets }}
+            {{- if ne $key "enabled" }}
+            - name: {{ $key }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openops.fullname" $ }}
+                  key: {{ $key }}
+            {{- end }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.app.resources | nindent 12 }}
+{{- end }}
+
+---
+{{- if .Values.engine.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "openops.fullname" . }}-engine
+  labels:
+    {{- include "openops.labels" . | nindent 4 }}
+    app.kubernetes.io/component: engine
+spec:
+  replicas: {{ .Values.engine.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "openops.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: engine
+  template:
+    metadata:
+      labels:
+        {{- include "openops.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: engine
+    spec:
+      {{- if .Values.engine.image.pullSecrets }}
+      imagePullSecrets:
+        {{- toYaml .Values.engine.image.pullSecrets | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ .Chart.Name }}-engine
+          image: "{{ .Values.engine.image.repository }}:{{ .Values.engine.image.tag }}"
+          imagePullPolicy: {{ .Values.engine.image.pullPolicy }}
+          env:
+            - name: OPS_COMPONENT
+              value: "engine"
+            - name: OPS_SERVER_API_URL
+              value: "http://{{ include "openops.fullname" . }}-app/api/"
+            - name: OPS_BASE_CODE_DIRECTORY
+              value: "/tmp/codes"
+            {{- range $key, $value := .Values.env }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+            {{- range $key, $value := .Values.secrets }}
+            {{- if ne $key "enabled" }}
+            - name: {{ $key }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openops.fullname" $ }}
+                  key: {{ $key }}
+            {{- end }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.engine.resources | nindent 12 }}
+          volumeMounts:
+            {{- if .Values.engine.volumes.azure.enabled }}
+            - name: azure-config
+              mountPath: /tmp/azure
+            {{- end }}
+            {{- if .Values.engine.volumes.gcloud.enabled }}
+            - name: gcloud-config
+              mountPath: /tmp/gcloud
+            {{- end }}
+      volumes:
+        {{- if .Values.engine.volumes.azure.enabled }}
+        - name: azure-config
+          persistentVolumeClaim:
+            claimName: {{ include "openops.fullname" . }}-azure
+        {{- end }}
+        {{- if .Values.engine.volumes.gcloud.enabled }}
+        - name: gcloud-config
+          persistentVolumeClaim:
+            claimName: {{ include "openops.fullname" . }}-gcloud
+        {{- end }}
+{{- end }}
+
+---
+{{- if .Values.tables.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "openops.fullname" . }}-tables
+  labels:
+    {{- include "openops.labels" . | nindent 4 }}
+    app.kubernetes.io/component: tables
+spec:
+  replicas: {{ .Values.tables.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "openops.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: tables
+  template:
+    metadata:
+      labels:
+        {{- include "openops.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: tables
+    spec:
+      {{- if .Values.tables.image.pullSecrets }}
+      imagePullSecrets:
+        {{- toYaml .Values.tables.image.pullSecrets | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ .Chart.Name }}-tables
+          image: "{{ .Values.tables.image.repository }}:{{ .Values.tables.image.tag }}"
+          imagePullPolicy: {{ .Values.tables.image.pullPolicy }}
+          env:
+            - name: BASEROW_PUBLIC_URL
+              value: "{{ .Values.env.OPS_OPENOPS_TABLES_PUBLIC_URL }}"
+            - name: BASEROW_PRIVATE_URL
+              value: "http://{{ include "openops.fullname" . }}-tables"
+            - name: BASEROW_EXTRA_ALLOWED_HOSTS
+              value: "*"
+            - name: MIGRATE_ON_STARTUP
+              value: "true"
+            - name: SYNC_TEMPLATES_ON_STARTUP
+              value: "false"
+            - name: DISABLE_VOLUME_CHECK
+              value: "yes"
+            - name: DATABASE_NAME
+              value: "{{ .Values.env.OPS_OPENOPS_TABLES_DATABASE_NAME }}"
+            - name: DATABASE_HOST
+              value: "{{ include "openops.fullname" . }}-postgres"
+            - name: DATABASE_PORT
+              value: "{{ .Values.postgres.service.port }}"
+            - name: DATABASE_USER
               valueFrom:
                 secretKeyRef:
                   name: {{ include "openops.fullname" . }}
-                  key: admin-password
-            {{- end }}
+                  key: OPS_POSTGRES_USERNAME
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openops.fullname" . }}
+                  key: OPS_POSTGRES_PASSWORD
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openops.fullname" . }}
+                  key: OPS_ENCRYPTION_KEY
+            - name: BASEROW_JWT_SIGNING_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openops.fullname" . }}
+                  key: OPS_JWT_SECRET
+            - name: BASEROW_ADMIN_USERNAME
+              value: "{{ .Values.env.OPS_OPENOPS_ADMIN_EMAIL }}"
+            - name: BASEROW_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openops.fullname" . }}
+                  key: OPS_OPENOPS_ADMIN_PASSWORD
+            - name: BASEROW_REFRESH_TOKEN_LIFETIME_HOURS
+              value: "{{ .Values.env.OPS_JWT_TOKEN_LIFETIME_HOURS }}"
+            - name: BASEROW_ACCESS_TOKEN_LIFETIME_MINUTES
+              value: "{{ .Values.env.OPS_TABLES_TOKEN_LIFETIME_MINUTES }}"
+            - name: REDIS_URL
+              value: "redis://{{ include "openops.fullname" . }}-redis:{{ .Values.redis.service.port }}/0"
           resources:
-            {{- toYaml .Values.resources | nindent 12 }}
+            {{- toYaml .Values.tables.resources | nindent 12 }}
           volumeMounts:
-            {{- if .Values.persistence.enabled }}
-            - name: data
-              mountPath: /data
-            {{- end }}
+            - name: tables-data
+              mountPath: /baserow/data
       volumes:
-        {{- if .Values.persistence.enabled }}
-        - name: data
+        - name: tables-data
           persistentVolumeClaim:
-            claimName: {{ include "openops.fullname" . }}
-        {{- end }}
+            claimName: {{ include "openops.fullname" . }}-tables
+{{- end }}
+
+---
+{{- if .Values.analytics.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "openops.fullname" . }}-analytics
+  labels:
+    {{- include "openops.labels" . | nindent 4 }}
+    app.kubernetes.io/component: analytics
+spec:
+  replicas: {{ .Values.analytics.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "openops.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: analytics
+  template:
+    metadata:
+      labels:
+        {{- include "openops.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: analytics
+    spec:
+      {{- if .Values.analytics.image.pullSecrets }}
+      imagePullSecrets:
+        {{- toYaml .Values.analytics.image.pullSecrets | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ .Chart.Name }}-analytics
+          image: "{{ .Values.analytics.image.repository }}:{{ .Values.analytics.image.tag }}"
+          imagePullPolicy: {{ .Values.analytics.image.pullPolicy }}
+          env:
+            - name: ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openops.fullname" . }}
+                  key: OPS_ANALYTICS_ADMIN_PASSWORD
+            - name: POWERUSER_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openops.fullname" . }}
+                  key: ANALYTICS_POWERUSER_PASSWORD
+            - name: SUPERSET_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openops.fullname" . }}
+                  key: OPS_ENCRYPTION_KEY
+            - name: GUNICORN_LOGLEVEL
+              value: "debug"
+            - name: DATABASE_DIALECT
+              value: "postgresql"
+            - name: DATABASE_DB
+              value: "analytics"
+            - name: DATABASE_HOST
+              value: "{{ include "openops.fullname" . }}-postgres"
+            - name: DATABASE_PORT
+              value: "{{ .Values.postgres.service.port }}"
+            - name: DATABASE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openops.fullname" . }}
+                  key: OPS_POSTGRES_USERNAME
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openops.fullname" . }}
+                  key: OPS_POSTGRES_PASSWORD
+            - name: DATABASE_HOST_ALT
+              value: "{{ include "openops.fullname" . }}-tables"
+            - name: SUPERSET_FEATURE_ALLOW_ADHOC_SUBQUERY
+              value: "{{ .Values.env.ANALYTICS_ALLOW_ADHOC_SUBQUERY }}"
+          resources:
+            {{- toYaml .Values.analytics.resources | nindent 12 }}
+{{- end }}
+
+---
+{{- if .Values.postgres.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "openops.fullname" . }}-postgres
+  labels:
+    {{- include "openops.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgres
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "openops.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: postgres
+  template:
+    metadata:
+      labels:
+        {{- include "openops.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: postgres
+    spec:
+      containers:
+        - name: {{ .Chart.Name }}-postgres
+          image: "{{ .Values.postgres.image.repository }}:{{ .Values.postgres.image.tag }}"
+          imagePullPolicy: {{ .Values.postgres.image.pullPolicy }}
+          args:
+            - "postgres"
+            - "-c"
+            - "max_connections={{ .Values.postgres.maxConnections }}"
+          ports:
+            - name: postgres
+              containerPort: {{ .Values.postgres.service.port }}
+              protocol: TCP
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openops.fullname" . }}
+                  key: OPS_POSTGRES_USERNAME
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openops.fullname" . }}
+                  key: OPS_POSTGRES_PASSWORD
+            - name: POSTGRES_DB
+              value: "{{ .Values.env.OPS_POSTGRES_DATABASE }}"
+          resources:
+            {{- toYaml .Values.postgres.resources | nindent 12 }}
+          volumeMounts:
+            - name: postgres-data
+              mountPath: /var/lib/postgresql/data
+            - name: init-scripts
+              mountPath: /docker-entrypoint-initdb.d/
+      volumes:
+        - name: postgres-data
+          persistentVolumeClaim:
+            claimName: {{ include "openops.fullname" . }}-postgres
+        - name: init-scripts
+          configMap:
+            name: {{ include "openops.fullname" . }}-postgres-init
+{{- end }}
+
+---
+{{- if .Values.redis.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "openops.fullname" . }}-redis
+  labels:
+    {{- include "openops.labels" . | nindent 4 }}
+    app.kubernetes.io/component: redis
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "openops.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: redis
+  template:
+    metadata:
+      labels:
+        {{- include "openops.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: redis
+    spec:
+      containers:
+        - name: {{ .Chart.Name }}-redis
+          image: "{{ .Values.redis.image.repository }}:{{ .Values.redis.image.tag }}"
+          imagePullPolicy: {{ .Values.redis.image.pullPolicy }}
+          ports:
+            - name: redis
+              containerPort: {{ .Values.redis.service.port }}
+              protocol: TCP
+          resources:
+            {{- toYaml .Values.redis.resources | nindent 12 }}
+          volumeMounts:
+            - name: redis-data
+              mountPath: /data
+      volumes:
+        - name: redis-data
+          persistentVolumeClaim:
+            claimName: {{ include "openops.fullname" . }}-redis
+{{- end }}
+
+---
+{{- if and .Values.nginx.enabled .Values.app.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "openops.fullname" . }}-nginx
+  labels:
+    {{- include "openops.labels" . | nindent 4 }}
+    app.kubernetes.io/component: nginx
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "openops.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: nginx
+  template:
+    metadata:
+      labels:
+        {{- include "openops.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: nginx
+    spec:
+      containers:
+        - name: {{ .Chart.Name }}-nginx
+          image: "{{ .Values.nginx.image.repository }}:{{ .Values.nginx.image.tag }}"
+          imagePullPolicy: {{ .Values.nginx.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 80
+              protocol: TCP
+          resources:
+            {{- toYaml .Values.nginx.resources | nindent 12 }}
+          volumeMounts:
+            - name: nginx-config
+              mountPath: /etc/nginx/conf.d/default.conf
+              subPath: nginx.conf
+      volumes:
+        - name: nginx-config
+          configMap:
+            name: {{ include "openops.fullname" . }}-nginx-config
+{{- end }}

@@ -1,0 +1,20 @@
+{{- if .Values.postgres.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "openops.fullname" . }}-postgres-init
+  labels:
+    {{- include "openops.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgres
+data:
+  init-db.sh: |-
+    #!/bin/bash
+    set -e
+
+    psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
+      CREATE DATABASE IF NOT EXISTS analytics;
+      CREATE DATABASE IF NOT EXISTS {{ .Values.env.OPS_OPENOPS_TABLES_DATABASE_NAME }};
+      GRANT ALL PRIVILEGES ON DATABASE analytics TO $POSTGRES_USER;
+      GRANT ALL PRIVILEGES ON DATABASE {{ .Values.env.OPS_OPENOPS_TABLES_DATABASE_NAME }} TO $POSTGRES_USER;
+    EOSQL
+{{- end }}

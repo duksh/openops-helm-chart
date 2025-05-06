@@ -3,6 +3,16 @@ entries:
   openops:
     - apiVersion: v2
       appVersion: 1.0.0
+      created: "2025-05-06T20:30:00Z"
+      description: A Helm chart for deploying the complete OpenOps platform to Kubernetes
+      digest: 4326e5d5a708fbdf7fd9e820a4cb69a154d0436620ae736e6c794a9bfd81cc3d
+      name: openops
+      type: application
+      urls:
+        - https://github.com/duksh/openops-helm-chart/releases/download/openops-0.2.0/openops-0.2.0.tgz
+      version: 0.2.0
+    - apiVersion: v2
+      appVersion: 1.0.0
       created: "2025-05-06T17:54:57Z"
       description: A Helm chart for OpenOps agent deployment in Kubernetes
       digest: 4326e5d5a708fbdf7fd9e820a4cb69a154d0436620ae736e6c794a9bfd81cc3d
@@ -11,4 +21,4 @@ entries:
       urls:
         - https://github.com/duksh/openops-helm-chart/releases/download/openops-0.1.0/openops-0.1.0.tgz
       version: 0.1.0
-generated: "2025-05-06T17:54:57Z"
+generated: "2025-05-06T20:30:00Z"
