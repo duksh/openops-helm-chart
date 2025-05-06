@@ -2,6 +2,14 @@
 
 A Helm chart for deploying OpenOps agent to Kubernetes
 
+## Version History
+
+- 0.1.0: Initial release with core functionality
+  - Deployment configuration
+  - Service exposure
+  - Secret management
+  - Persistent volume integration
+
 ## Prerequisites
 
 - Kubernetes 1.19+
